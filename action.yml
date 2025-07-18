@@ -1,50 +1,86 @@
-name: 'Update GAP package website'
+name: 'Update GitHub Pages'
 description: 'Update the gh-pages branch of a GAP package'
 inputs:
   version:
     description: 'the version of the package from which to update the website (if empty, use latest)'
     required: false
     default: ''
+  clean:
+    description: 'use a fresh copy of the GithubPagesForGAP website - this will undo any modifications made'
+    required: false
+    default: 'true'
 
 runs:
   using: "composite"
   steps:
-      - name: "git -- checkout page"
-        uses: actions/checkout@v4
-        with:
-          path: gh-pages
-          ref: gh-pages
 
-      - name: "website -- download asset to be deployed"
-        uses: robinraju/release-downloader@v1
-        with:
-          tag: ${{ github.ref_name }}
-          fileName: ${{ env.archive-file }}
-      
-      - name: "website -- extract the archive"
+      - name: "Setup git"
         shell: bash
         run: |
-          tar -xvf ${{ env.archive-file }}
-
-      - name: "metadata -- copy metada to update page"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git fetch
+  
+      - name: "Create gh-pages worktree"
         shell: bash
         run: |
-          rm -r ./gh-pages/doc
-          cp -r ${{ env.revision }}/doc/ ./gh-pages/doc/
-          cp ${{ env.revision }}/PackageInfo.g ./gh-pages/PackageInfo.g
-          cp ${{ env.revision }}/README.md ./gh-pages/README.md
-          rm -v ./gh-pages/doc/.gitignore
+          if [[ -z $(git ls-remote --heads origin gh-pages) ]]; then
+            BRANCH=$(git branch --show-current)
+            git switch --orphan gh-pages
+            git commit --allow-empty -m "Create gh-pages branch"
+            git checkout $BRANCH
+          fi
+          git worktree add gh-pages gh-pages
 
-      - name: "gap -- run update.g"
+      - name: "Setup GitHubPagesForGap"
         shell: bash
-        working-directory: ./gh-pages
+        if: ${{ inputs.clean == 'true' }}
+        working-directory: gh-pages
         run: |
-          gap update.g
+          # Remove everything
+          git rm -r --cached --ignore-unmatch *
+          git clean -f *
+          # Download GitHubPagesForGap and extract
+          wget -qO- https://github.com/gap-system/GitHubPagesForGAP/archive/refs/heads/gh-pages.tar.gz | tar xzf - --strip-components=1
+          # Add GitHubPagesForGap to git
+          git add .
+          git commit -m "Update to newest version of GitHubPagesForGap"
 
-      - name: "git -- commit the update"
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: '[${{ github.ref_name }}] - website update'
-          repository: gh-pages
-          branch: gh-pages
-          push_options: '--force'
+      - name: "Get the release"
+        shell: bash
+        run: |
+          if [[ -z "${{ inputs.version }}" ]]; then
+            wget -q https://github.com/${{ github.repository }}/releases/latest/download/package-info.json
+          else
+            VERSION=${{ inputs.version }}
+            VERSION=v${VERSION#v}
+            wget -q https://github.com/${{ github.repository }}/releases/download/$VERSION/package-info.json
+          fi
+          ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
+          ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
+          sudo apt-get install --no-install-recommends libarchive-tools
+          mkdir -p tmp
+          wget -qO- $ARCHIVE_URL$ARCHIVE_FORMAT | bsdtar xf - --strip-components=1 -C tmp
+
+      - name: "Copy files from the release"
+        shell: bash
+        working-directory: gh-pages
+        run: |
+          cp -f ../tmp/PackageInfo.g .
+          cp -f ../tmp/README* .
+          cp -f ../tmp/doc/*.{css,html,js,txt} doc/
+
+      - name: "Run update script"
+        shell: bash
+        working-directory: gh-pages
+        run: |
+          GAPROOT=${GAPROOT-$HOME/gap}
+          $GAPROOT/gap update.g
+
+      - name: "Update the gh-pages branch"
+        shell: bash
+        working-directory: gh-pages
+        run: |
+          git add PackageInfo.g README* doc/ _data/package.yml
+          git commit --allow-empty -m "Update GitHub Pages"
+          git push --set-upstream origin gh-pages
