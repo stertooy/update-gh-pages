@@ -1,38 +1,73 @@
 # update-gh-pages
 
-This GitHub action update the `gh-pages` branch of a GAP package using
-[GitHubPagesForGAP](https://github.com/gap-system/GitHubPagesForGAP)
-whenever there is a new release. If everything is conf
+This GitHub action updates (or creates) the `gh-pages` branch of a GAP package using
+[GitHubPagesForGAP](https://github.com/gap-system/GitHubPagesForGAP).
 
 ## Usage
 
 The action `update-gh-pages` has to be called by the workflow of a GAP
-package.
-It updates the package.
+package. By default, it will use the latest release of the package.
 
+### Inputs
 
-### Examples
+All of the following inputs are optional.
+
+- `version`:
+  - Set to a non-empty string to choose a specific release of your package (e.g. `v1.2.3`)
+    instead of the latest release.
+  - default: `''`
+- `clean`:
+  - Set to `false` to only update the information on the website and not the website code itself.
+    This can be useful if you have made modifications to it.
+  - default: `true`
+
+### Example
 
 See below for a minimal example to run this action.
 
 #### Minimal example
 ```yaml
-name: CI
-
+name: Update GH-pages
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Test
+  update:
+    name: Update GH pages
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
       - uses: gap-actions/setup-gap@v2
       - uses: gap-actions/update-gh-pages@v1
+```
 
+#### Example with inputs
+```yaml
+name: Update GH-pages
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Set to a non-empty string to choose a specific release of your package'
+        required: false
+        type: string
+        default: ''
+      clean:
+        description: 'Set to false to only update the information on the website and not the website code itself'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  update:
+    name: Update GH pages
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gap-actions/setup-gap@v2
+      - uses: gap-actions/update-gh-pages@v1
 ```
 
 ## Contact
