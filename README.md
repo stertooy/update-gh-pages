@@ -31,6 +31,8 @@ name: Update GH-pages
 on:
   workflow_dispatch:
 
+permissions: write-all
+
 jobs:
   update:
     name: Update GH pages
@@ -59,6 +61,8 @@ on:
         type: boolean
         default: true
 
+permissions: write-all
+
 jobs:
   update:
     name: Update GH pages
@@ -68,6 +72,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: gap-actions/setup-gap@v2
       - uses: gap-actions/update-gh-pages@v1
+        with:
+          version: ${{ inputs.version }}
+          clean: ${{ inputs.clean }}
 ```
 
 ## Contact
