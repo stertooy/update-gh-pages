@@ -79,7 +79,7 @@ runs:
           for f in ./*.htm* ; do
             sed -E \
               -e 's;href="[^"]*/doc/([^/"]+)/chap;href="https://docs.gap-system.org/doc/\L\1/chap;g' \
-              -e 's;href="[^"]*/\.?pkg/([^/"]+)(-[^/"]+)?/doc/chap;href="https://my-url.com/pkg/\L\1/doc/chap;g' \
+              -e 's;href="[^"]*/\.?pkg/([^/"]+)(-[^/"]+)?/doc/chap;href=https://docs.gap-system.org/\L\1/doc/chap;g' \
               "$f" > "$f.bak"
             mv "$f.bak" "$f"
           done
