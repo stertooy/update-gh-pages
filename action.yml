@@ -71,6 +71,19 @@ runs:
           cp -f ../tmp/PackageInfo.g .
           cp -f ../tmp/README* .
           cp -f ../tmp/doc/*.{css,html,js,txt} doc/
+          
+      - name: "Update links in docs"
+        shell: bash
+        working-directory: gh-pages/doc
+        run: |
+          for f in ./*.htm* ; do
+            sed \
+              -e 's;href="../../../doc/;href="https://docs.gap-system.org/doc/;g' \
+              -e 's;href="../../../pkg/GAPDoc[^\/]*/doc/;href="http://www.math.rwth-aachen.de/~Frank.Luebeck/GAPDoc/doc/;g' \
+              -e 's;href="../../../pkg/gapdoc[^\/]*/doc/;href="http://www.math.rwth-aachen.de/~Frank.Luebeck/GAPDoc/doc/;g' \
+              "$f" > "$f.bak"
+            mv "$f.bak" "$f"
+          done
 
       - name: "Run update script"
         shell: bash
