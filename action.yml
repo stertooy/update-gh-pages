@@ -78,9 +78,8 @@ runs:
         run: |
           for f in ./*.htm* ; do
             sed \
-              -e 's;href="../../../doc/;href="https://docs.gap-system.org/doc/;g' \
-              -e 's;href="../../../pkg/GAPDoc[^\/]*/doc/;href="http://www.math.rwth-aachen.de/~Frank.Luebeck/GAPDoc/doc/;g' \
-              -e 's;href="../../../pkg/gapdoc[^\/]*/doc/;href="http://www.math.rwth-aachen.de/~Frank.Luebeck/GAPDoc/doc/;g' \
+              -E 's;href="[^"]*/doc/([^/"]+)/chap;href="https://docs.gap-system.org/doc/\L\1/chap;g' \
+              -E 's;href="[^"]*/.?pkg/([^/"]+)(-[^/"]+)?/doc/chap;href="https://my-url.com/pkg/\L\1/doc/chap;g' \
               "$f" > "$f.bak"
             mv "$f.bak" "$f"
           done
