@@ -60,7 +60,7 @@ runs:
           fi
           ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
           ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
-          sudo apt-get install --no-install-recommends libarchive-tools
+          sudo apt-get install --no-install-recommends libarchive-tools -y
           mkdir -p tmp
           wget -qO- $ARCHIVE_URL$ARCHIVE_FORMAT | bsdtar xf - --strip-components=1 -C tmp
 
