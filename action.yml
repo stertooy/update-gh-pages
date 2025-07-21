@@ -58,17 +58,29 @@ runs:
           fi
           ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
           ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
-          sudo apt-get install --no-install-recommends libarchive-tools
-          mkdir -p tmp
-          wget -qO- $ARCHIVE_URL$ARCHIVE_FORMAT | bsdtar xf - --strip-components=1 -C tmp
+          sudo apt-get install --no-install-recommends libarchive-tools -y
+          mkdir -p tmp-pkg-copy
+          wget -qO- $ARCHIVE_URL$ARCHIVE_FORMAT | bsdtar xf - --strip-components=1 -C tmp-pkg-copy
 
       - name: "Copy files from the release"
         shell: bash
         working-directory: gh-pages
         run: |
-          cp -f ../tmp/PackageInfo.g .
-          cp -f ../tmp/README* .
-          cp -f ../tmp/doc/*.{css,html,js,txt} doc/
+          cp -f ../tmp-pkg-copy/PackageInfo.g .
+          cp -f ../tmp-pkg-copy/README* .
+          cp -f ../tmp-pkg-copy/doc/*.{css,html,js,txt} doc/
+          
+      - name: "Update links in docs"
+        shell: bash
+        working-directory: gh-pages/doc
+        run: |
+          for f in ./*.htm* ; do
+            sed -E \
+              -e 's;href="[^"]*/doc/([^/"]+)/chap;href="https://docs.gap-system.org/doc/\L\1/chap;g' \
+              -e 's;href="[^"]*/\.?pkg/([^/"]+)(-[^/"]+)?/doc/chap;href="https://docs.gap-system.org/pkg/\L\1/doc/chap;g' \
+              "$f" > "$f.bak"
+            mv "$f.bak" "$f"
+          done
 
       - name: "Run update script"
         shell: bash
