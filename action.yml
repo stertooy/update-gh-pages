@@ -1,14 +1,18 @@
 name: 'Update GitHub Pages'
 description: 'Update the gh-pages branch of a GAP package'
 inputs:
+  dry-run:
+    description: "Set to true to not push the release to GitHub"
+    required: false
+    default: "false"
   version:
     description: 'the version of the package from which to update the website (if empty, use latest)'
     required: false
-    default: ''
+    default: ""
   clean:
     description: 'use a fresh copy of the GithubPagesForGAP website - this will undo any modifications made'
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
   using: "composite"
@@ -46,7 +50,7 @@ runs:
           git add .
           git commit -m "Update to newest version of GitHubPagesForGap"
 
-      - name: "Get the release"
+      - name: "Get package-info.json from the release"
         shell: bash
         run: |
           if [[ -z "${{ inputs.version }}" ]]; then
@@ -58,28 +62,53 @@ runs:
           fi
           ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
           ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
+          README_URL=$(cat package-info.json | jq -r '.README_URL')
+          echo "ARCHIVE=$ARCHIVE_URL$ARCHIVE_FORMAT" >> "$GITHUB_ENV"
+          echo "README=$(basename $README_URL)" >> "$GITHUB_ENV"
+          echo "PKGNAME=$(cat package-info.json | jq -r '.PackageName')" >> "$GITHUB_ENV"
+          echo "VERSION=$(cat package-info.json | jq -r '.Version')" >> "$GITHUB_ENV"
+
+      - name: "Create a copy of the release"
+        shell: bash
+        run: |
           sudo apt-get install --no-install-recommends libarchive-tools -y
           mkdir -p tmp-pkg-copy
-          wget -qO- $ARCHIVE_URL$ARCHIVE_FORMAT | bsdtar xf - --strip-components=1 -C tmp-pkg-copy
+          wget -O - $ARCHIVE | bsdtar xf - --strip-components=1 -C tmp-pkg-copy
 
       - name: "Copy files from the release"
         shell: bash
         working-directory: gh-pages
         run: |
-          cp -f ../tmp-pkg-copy/PackageInfo.g .
-          cp -f ../tmp-pkg-copy/README* .
-          cp -f ../tmp-pkg-copy/doc/*.{css,html,js,txt} doc/
+          $SOURCE=../tmp-pkg-copy
+          cp -f $SOURCE/PackageInfo.g .
+          cp -f $SOURCE/$README .
+          rm -rf doc/ htm/
+          # TODO Should we really copy txt? This will also copy the txt files used by GAP which are unreadable...
+          if [ -f "$SOURCE/doc/chap0.html" ] ; then
+            mkdir -p doc
+            cp -f $SOURCE/doc/*.{css,html,jpg,js,png,txt} doc/
+          fi
+          if [ -d "$SOURCE/htm" ] ; then
+              cp -r "$SOURCE/htm" .
+          fi
+          if [ -d "$SOURCE/doc/htm" ] ; then
+              mkdir -p doc
+              cp -r "$SOURCE/doc/htm" doc/
+          fi
           
       - name: "Update links in docs"
         shell: bash
         working-directory: gh-pages/doc
         run: |
-          for f in ./*.htm* ; do
-            sed -E \
+          # Adjust links to the GAP manuals and to the GAPDoc manuals.
+          # Since this action is designed to run on ubuntu-latest, we can use sed -i
+          shopt -s globstar
+          # TODO: improve these substitutions?
+          for f in **/*.htm* ; do
+            sed -Ei \
               -e 's;href="[^"]*/doc/([^/"]+)/chap;href="https://docs.gap-system.org/doc/\L\1/chap;g' \
               -e 's;href="[^"]*/\.?pkg/([^/"]+)(-[^/"]+)?/doc/chap;href="https://docs.gap-system.org/pkg/\L\1/doc/chap;g' \
-              "$f" > "$f.bak"
-            mv "$f.bak" "$f"
+              "$f"
           done
 
       - name: "Run update script"
@@ -92,7 +121,8 @@ runs:
       - name: "Update the gh-pages branch"
         shell: bash
         working-directory: gh-pages
+        if: ${{ inputs.dry-run == 'false' }}
         run: |
-          git add PackageInfo.g README* doc/ _data/package.yml
-          git commit --allow-empty -m "Update GitHub Pages"
+          git add -A
+          git commit --allow-empty -m "Update website for $PKGNAME $VERSION"
           git push --set-upstream origin gh-pages
