@@ -3,12 +3,6 @@ on:
   pull_request:
   push:
   workflow_dispatch:
-    inputs:
-      dry-run:
-        description: "Set to true to prevent actually making a release"
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   test:
@@ -20,7 +14,7 @@ jobs:
       - name: "Clone the Example package"
         uses: actions/checkout@v4
         with:
-          repository: gap-packages/example
+          repository: stertooy/TwistedConjugacy
 
       - name: "Check out this repository"
         uses: actions/checkout@v4
