@@ -6,13 +6,17 @@ inputs:
     required: false
     default: "false"
   version:
-    description: 'the version of the package from which to update the website (if empty, use latest)'
+    description: "The version of the package from which to update the website (if empty, use latest)"
     required: false
     default: ""
   clean:
-    description: 'use a fresh copy of the GithubPagesForGAP website - this will undo any modifications made'
+    description: "Use a fresh copy of the GithubPagesForGAP website - this will undo any modifications made"
     required: false
     default: "true"
+  repository:
+    description: "The repository to update"
+    required: false
+    default: "${{ github.repository }}"
 
 runs:
   using: "composite"
@@ -55,12 +59,12 @@ runs:
         run: |
           if [[ -z "${{ inputs.version }}" ]]; then
             echo "Downloading latest release"
-            wget https://github.com/${{ github.repository }}/releases/latest/download/package-info.json
+            wget https://github.com/${{ inputs.repository }}/releases/latest/download/package-info.json
           else
             VERSION=${{ inputs.version }}
             VERSION=${VERSION#v}
             echo "Downloading $VERSION release"
-            wget https://github.com/${{ github.repository }}/releases/download/v$VERSION/package-info.json
+            wget https://github.com/${{ inputs.repository }}/releases/download/v$VERSION/package-info.json
           fi
           ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
           ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
