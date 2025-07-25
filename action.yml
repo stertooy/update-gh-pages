@@ -56,7 +56,7 @@ runs:
 
       - name: "Get package-info.json from the release"
         shell: bash
-        working-directory: {{ runner.temp }}
+        working-directory: ${{ runner.temp }}
         run: |
           if [[ -z "${{ inputs.version }}" ]]; then
             echo "Downloading package-info.json from latest release"
