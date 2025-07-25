@@ -54,11 +54,13 @@ runs:
         shell: bash
         run: |
           if [[ -z "${{ inputs.version }}" ]]; then
-            wget -q https://github.com/${{ github.repository }}/releases/latest/download/package-info.json
+            echo "Downloading latest release"
+            wget https://github.com/${{ github.repository }}/releases/latest/download/package-info.json
           else
             VERSION=${{ inputs.version }}
             VERSION=v${VERSION#v}
-            wget -q https://github.com/${{ github.repository }}/releases/download/$VERSION/package-info.json
+            echo "Downloading $VERSION release"
+            wget https://github.com/${{ github.repository }}/releases/download/$VERSION/package-info.json
           fi
           ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
           ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
