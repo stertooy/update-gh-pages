@@ -92,6 +92,7 @@ runs:
           # TODO Should we really copy txt? This will also copy the txt files used by GAP which are unreadable...
           if [ -f "$SOURCE/doc/chap0.html" ] ; then
             mkdir -p doc
+            shopt -s nullglob
             cp -f $SOURCE/doc/*.{css,html,jpg,js,png,txt} doc/
           fi
           if [ -d "$SOURCE/htm" ] ; then
