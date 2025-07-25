@@ -28,3 +28,4 @@ jobs:
         uses: ./.this-action/
         with:
           dry-run: true
+          repository: stertooy/TwistedConjugacy
