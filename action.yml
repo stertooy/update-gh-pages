@@ -85,7 +85,7 @@ runs:
         shell: bash
         working-directory: gh-pages
         run: |
-          $SOURCE=../tmp-pkg-copy
+          SOURCE=../tmp-pkg-copy
           cp -f $SOURCE/PackageInfo.g .
           cp -f $SOURCE/$README .
           rm -rf doc/ htm/
