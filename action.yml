@@ -58,9 +58,9 @@ runs:
             wget https://github.com/${{ github.repository }}/releases/latest/download/package-info.json
           else
             VERSION=${{ inputs.version }}
-            VERSION=v${VERSION#v}
+            VERSION=${VERSION#v}
             echo "Downloading $VERSION release"
-            wget https://github.com/${{ github.repository }}/releases/download/$VERSION/package-info.json
+            wget https://github.com/${{ github.repository }}/releases/download/v$VERSION/package-info.json
           fi
           ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
           ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
