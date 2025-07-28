@@ -135,3 +135,17 @@ runs:
           git add -A
           git commit --allow-empty -m "Update website for $PKGNAME $VERSION"
           git push --set-upstream origin gh-pages
+
+      - name: "Build the website"
+        if: ${{ inputs.dry-run == 'true' }}
+        uses: actions/jekyll-build-pages@v1
+        source: gh-pages
+        destination: output
+
+      - name: "Upload the release"
+        uses: actions/upload-artifact@v4
+        if: ${{ inputs.dry-run == 'true' }}
+        with:
+          name: "Website_for_${{ env.PKGNAME }}_${{ env.VERSION }}"
+          path: output
+          if-no-files-found: error
