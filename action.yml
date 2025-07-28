@@ -139,8 +139,9 @@ runs:
       - name: "Build the website"
         if: ${{ inputs.dry-run == 'true' }}
         uses: actions/jekyll-build-pages@v1
-        source: gh-pages
-        destination: output
+        with:
+          source: gh-pages
+          destination: output
 
       - name: "Upload the release"
         uses: actions/upload-artifact@v4
