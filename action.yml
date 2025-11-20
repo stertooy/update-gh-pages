@@ -25,6 +25,20 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: "Validate input"
+      shell: bash
+      run: |
+        validate_boolean() {
+          local input=$1
+          local option_name=$2
+          if ! [[ "$input" =~ ^(true|false)$ ]]; then
+            echo "::error::Invalid value for option $option_name. Expected 'true' or 'false', but found '$input'"
+            exit 1;
+          fi
+        }
+
+        validate_boolean "${{ inputs.dry-run }}" dry-run
+        validate_boolean "${{ inputs.clean }}" clean
 
       - name: "Setup git"
         shell: bash
@@ -32,11 +46,12 @@ runs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git fetch
-  
+
       - name: "Create gh-pages worktree"
         shell: bash
         run: |
           if [[ -z $(git ls-remote --heads origin gh-pages) ]]; then
+            echo "::warning::No existing 'gh-pages' branch was found, so it was created. You will still need to change the Pages settings of your repository."
             BRANCH=$(git branch --show-current)
             git switch --orphan gh-pages
             git commit --allow-empty -m "Create gh-pages branch"
@@ -132,11 +147,11 @@ runs:
               mkdir -p "$(dirname "${DST}")"
               cp -f "${TMP_DIR}/${SRC}" "./${DST}"
             else
-              echo "File/directory ${TMP_DIR}/${SRC} not found"
+              echo "::error::File/directory ${TMP_DIR}/${SRC} not found"
               exit 1
             fi
           done
-          
+
       - name: "Update links in docs"
         shell: bash
         working-directory: gh-pages
