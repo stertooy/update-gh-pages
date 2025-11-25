@@ -25,163 +25,178 @@ inputs:
 runs:
   using: "composite"
   steps:
-
-      - name: "Setup git"
-        shell: bash
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git fetch
-  
-      - name: "Create gh-pages worktree"
-        shell: bash
-        run: |
-          if [[ -z $(git ls-remote --heads origin gh-pages) ]]; then
-            BRANCH=$(git branch --show-current)
-            git switch --orphan gh-pages
-            git commit --allow-empty -m "Create gh-pages branch"
-            git checkout $BRANCH
+    - name: "Validate input"
+      shell: bash
+      run: |
+        validate_boolean() {
+          local input=$1
+          local option_name=$2
+          if ! [[ "$input" =~ ^(true|false)$ ]]; then
+            echo "::error::Invalid value for option $option_name. Expected 'true' or 'false', but found '$input'"
+            exit 1;
           fi
-          git worktree add gh-pages gh-pages
+        }
 
-      - name: "Setup GitHubPagesForGAP"
-        shell: bash
-        if: ${{ inputs.clean == 'true' }}
-        working-directory: gh-pages
-        run: |
-          # Remove everything
-          git rm -r --cached --ignore-unmatch *
-          git clean -f *
-          # Download GitHubPagesForGAP and extract
-          wget -qO- https://github.com/gap-system/GitHubPagesForGAP/archive/refs/heads/gh-pages.tar.gz | tar xzf - --strip-components=1
-          # Add GitHubPagesForGap to git
-          git add .
-          git commit -m "Update to newest version of GitHubPagesForGAP"
+        validate_boolean "${{ inputs.dry-run }}" dry-run
+        validate_boolean "${{ inputs.clean }}" clean
 
-      - name: "Get package-info.json from the release"
-        shell: bash
-        working-directory: ${{ runner.temp }}
-        run: |
-          if [[ -z "${{ inputs.version }}" ]]; then
-            echo "Downloading package-info.json from latest release"
-            wget https://github.com/${{ inputs.repository }}/releases/latest/download/package-info.json
+    - name: "Setup git"
+      shell: bash
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git fetch
+
+    - name: "Create gh-pages worktree"
+      shell: bash
+      run: |
+        if [[ -z $(git ls-remote --heads origin gh-pages) ]]; then
+          echo "::warning::No existing 'gh-pages' branch was found, so it was created. You will still need to change the Pages settings of your repository."
+          BRANCH=$(git branch --show-current)
+          git switch --orphan gh-pages
+          git commit --allow-empty -m "Create gh-pages branch"
+          git checkout $BRANCH
+        fi
+        git worktree add gh-pages gh-pages
+
+    - name: "Setup GitHubPagesForGAP"
+      shell: bash
+      if: ${{ inputs.clean == 'true' }}
+      working-directory: gh-pages
+      run: |
+        # Remove everything
+        git rm -r --cached --ignore-unmatch *
+        git clean -f *
+        # Download GitHubPagesForGAP and extract
+        wget -qO- https://github.com/gap-system/GitHubPagesForGAP/archive/refs/heads/gh-pages.tar.gz | tar xzf - --strip-components=1
+        # Add GitHubPagesForGap to git
+        git add .
+        git commit -m "Update to newest version of GitHubPagesForGAP"
+
+    - name: "Get package-info.json from the release"
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      run: |
+        if [[ -z "${{ inputs.version }}" ]]; then
+          echo "Downloading package-info.json from latest release"
+          wget https://github.com/${{ inputs.repository }}/releases/latest/download/package-info.json
+        else
+          VERSION=${{ inputs.version }}
+          VERSION=${VERSION#v}
+          echo "Downloading package-info.json from $VERSION release"
+          wget https://github.com/${{ inputs.repository }}/releases/download/v$VERSION/package-info.json
+        fi
+        ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
+        ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
+        README_URL=$(cat package-info.json | jq -r '.README_URL')
+        echo "ARCHIVE=$ARCHIVE_URL$ARCHIVE_FORMAT" | tee -a "$GITHUB_ENV"
+        echo "README=$(basename $README_URL)" | tee -a "$GITHUB_ENV"
+        echo "PKGNAME=$(cat package-info.json | jq -r '.PackageName')" | tee -a "$GITHUB_ENV"
+        echo "VERSION=$(cat package-info.json | jq -r '.Version')" | tee -a "$GITHUB_ENV"
+
+    - name: "Get package from the release"
+      shell: bash
+      run: |
+        mkdir -p $RUNNER_TEMP/pkg-release
+        TMP_DIR=$RUNNER_TEMP/pkg-release
+        echo "TMP_DIR=$TMP_DIR" >> "$GITHUB_ENV"
+        # We use bsdtar here as it can handle all three supported archive formats, unlike tar/unzip
+        sudo apt-get install --no-install-recommends libarchive-tools -y
+        wget -O - $ARCHIVE | bsdtar xf - --strip-components=1 -C $TMP_DIR
+
+    - name: "Copy files from the release"
+      shell: bash
+      working-directory: gh-pages
+      run: |
+        cp -f $TMP_DIR/PackageInfo.g .
+        cp -f $TMP_DIR/$README .
+        rm -rf doc/ htm/
+        if [ -f "$TMP_DIR/doc/chap0.html" ] ; then
+          mkdir -p doc
+          shopt -s nullglob
+          cp -f $TMP_DIR/doc/*.{css,html,jpg,js,png} doc/
+        fi
+        if [ -d "$TMP_DIR/htm" ] ; then
+          cp -r "$TMP_DIR/htm" .
+        fi
+        # The following check is for the sonata package
+        if [ -d "$TMP_DIR/doc/htm" ] ; then
+          mkdir -p doc
+          cp -r "$TMP_DIR/doc/htm" doc/
+        fi
+
+    - name: "Copy extra files from the release"
+      shell: bash 
+      working-directory: gh-pages
+      if: ${{ inputs.extra-files != '' }}
+      run: |
+        for PAIR in $(echo "${{ inputs.extra-files }}" | tr "," "\n"); do
+
+          SRC="$(echo ${PAIR} | cut -d':' -f1)"
+          DST="$(echo ${PAIR} | cut -d':' -f2)"
+          if [ "${DST}" == "" ]; then
+            DST="${SRC}"
+          fi
+
+          if [ -d "${TMP_DIR}/${SRC}" ] ; then
+            echo "Copying directory ${TMP_DIR}/${SRC} to ./$DST"
+            mkdir -p "$(dirname "${DST}")"
+            cp -R "${TMP_DIR}/${SRC}" "./${DST}"
+          elif [ -f "${TMP_DIR}/${SRC}" ] ; then
+            echo "Copying file ${TMP_DIR}/${SRC} to ./${DST}"
+            mkdir -p "$(dirname "${DST}")"
+            cp -f "${TMP_DIR}/${SRC}" "./${DST}"
           else
-            VERSION=${{ inputs.version }}
-            VERSION=${VERSION#v}
-            echo "Downloading package-info.json from $VERSION release"
-            wget https://github.com/${{ inputs.repository }}/releases/download/v$VERSION/package-info.json
+            echo "::error::File/directory ${TMP_DIR}/${SRC} not found"
+            exit 1
           fi
-          ARCHIVE_URL=$(cat package-info.json | jq -r '.ArchiveURL')
-          ARCHIVE_FORMAT=$(cat package-info.json | jq -r '.ArchiveFormats' | tr "," " " | awk '{print $1}')
-          README_URL=$(cat package-info.json | jq -r '.README_URL')
-          echo "ARCHIVE=$ARCHIVE_URL$ARCHIVE_FORMAT" | tee -a "$GITHUB_ENV"
-          echo "README=$(basename $README_URL)" | tee -a "$GITHUB_ENV"
-          echo "PKGNAME=$(cat package-info.json | jq -r '.PackageName')" | tee -a "$GITHUB_ENV"
-          echo "VERSION=$(cat package-info.json | jq -r '.Version')" | tee -a "$GITHUB_ENV"
+        done
 
-      - name: "Get package from the release"
-        shell: bash
-        run: |
-          mkdir -p $RUNNER_TEMP/pkg-release
-          TMP_DIR=$RUNNER_TEMP/pkg-release
-          echo "TMP_DIR=$TMP_DIR" >> "$GITHUB_ENV"
-          # We use bsdtar here as it can handle all three supported archive formats, unlike tar/unzip
-          sudo apt-get install --no-install-recommends libarchive-tools -y
-          wget -O - $ARCHIVE | bsdtar xf - --strip-components=1 -C $TMP_DIR
-
-      - name: "Copy files from the release"
-        shell: bash
-        working-directory: gh-pages
-        run: |
-          cp -f $TMP_DIR/PackageInfo.g .
-          cp -f $TMP_DIR/$README .
-          rm -rf doc/ htm/
-          if [ -f "$TMP_DIR/doc/chap0.html" ] ; then
-            mkdir -p doc
-            shopt -s nullglob
-            cp -f $TMP_DIR/doc/*.{css,html,jpg,js,png} doc/
-          fi
-          if [ -d "$TMP_DIR/htm" ] ; then
-            cp -r "$TMP_DIR/htm" .
-          fi
-          # The following check is for the sonata package
-          if [ -d "$TMP_DIR/doc/htm" ] ; then
-            mkdir -p doc
-            cp -r "$TMP_DIR/doc/htm" doc/
-          fi
-
-      - name: "Copy extra files from the release"
-        shell: bash 
-        working-directory: gh-pages
-        if: ${{ inputs.extra-files != '' }}
-        run: |
-          for PAIR in $(echo "${{ inputs.extra-files }}" | tr "," "\n"); do
-
-            SRC="$(echo ${PAIR} | cut -d':' -f1)"
-            DST="$(echo ${PAIR} | cut -d':' -f2)"
-            if [ "${DST}" == "" ]; then
-              DST="${SRC}"
-            fi
-
-            if [ -d "${TMP_DIR}/${SRC}" ] ; then
-              echo "Copying directory ${TMP_DIR}/${SRC} to ./$DST"
-              mkdir -p "$(dirname "${DST}")"
-              cp -R "${TMP_DIR}/${SRC}" "./${DST}"
-            elif [ -f "${TMP_DIR}/${SRC}" ] ; then
-              echo "Copying file ${TMP_DIR}/${SRC} to ./${DST}"
-              mkdir -p "$(dirname "${DST}")"
-              cp -f "${TMP_DIR}/${SRC}" "./${DST}"
-            else
-              echo "File/directory ${TMP_DIR}/${SRC} not found"
-              exit 1
-            fi
+    - name: "Update links in docs"
+      shell: bash
+      working-directory: gh-pages
+      run: |
+        if [ -d "doc" ] ; then
+          cd doc
+          # Adjust links to the GAP manuals and to the GAPDoc manuals.
+          # Since this action is designed to run on ubuntu-latest, we can use sed -i
+          shopt -s globstar
+          # TODO: improve these substitutions, should the need arise. E.g. do not replace when href starts with "http"?
+          for f in **/*.htm* ; do
+            sed -Ei \
+              -e 's;href="[^"]*/doc/([^/"]+)/chap;href="https://docs.gap-system.org/doc/\L\1/chap;g' \
+              -e 's;href="[^"]*/\.?pkg/([^/"]+)(-[^/"]+)?/doc/chap;href="https://docs.gap-system.org/pkg/\L\1/doc/chap;g' \
+              "$f"
           done
-          
-      - name: "Update links in docs"
-        shell: bash
-        working-directory: gh-pages
-        run: |
-          if [ -d "doc" ] ; then
-            cd doc
-            # Adjust links to the GAP manuals and to the GAPDoc manuals.
-            # Since this action is designed to run on ubuntu-latest, we can use sed -i
-            shopt -s globstar
-            # TODO: improve these substitutions, should the need arise. E.g. do not replace when href starts with "http"?
-            for f in **/*.htm* ; do
-              sed -Ei \
-                -e 's;href="[^"]*/doc/([^/"]+)/chap;href="https://docs.gap-system.org/doc/\L\1/chap;g' \
-                -e 's;href="[^"]*/\.?pkg/([^/"]+)(-[^/"]+)?/doc/chap;href="https://docs.gap-system.org/pkg/\L\1/doc/chap;g' \
-                "$f"
-            done
-          fi
+        fi
 
-      - name: "Run update script"
-        shell: bash
-        working-directory: gh-pages
-        run: |
-          GAPROOT=${GAPROOT-$HOME/gap}
-          $GAPROOT/gap update.g
+    - name: "Run update script"
+      shell: bash
+      working-directory: gh-pages
+      run: |
+        GAPROOT=${GAPROOT-$HOME/gap}
+        $GAPROOT/gap update.g
 
-      - name: "Update the gh-pages branch"
-        shell: bash
-        working-directory: gh-pages
-        if: ${{ inputs.dry-run == 'false' }}
-        run: |
-          git add -A
-          git commit --allow-empty -m "Update website for $PKGNAME $VERSION"
-          git push --set-upstream origin gh-pages
+    - name: "Update the gh-pages branch"
+      shell: bash
+      working-directory: gh-pages
+      if: ${{ inputs.dry-run == 'false' }}
+      run: |
+        git add -A
+        git commit --allow-empty -m "Update website for $PKGNAME $VERSION"
+        git push --set-upstream origin gh-pages
 
-      - name: "Build the website"
-        if: ${{ inputs.dry-run == 'true' }}
-        uses: actions/jekyll-build-pages@v1
-        with:
-          source: gh-pages
-          destination: output
+    - name: "Build the website"
+      if: ${{ inputs.dry-run == 'true' }}
+      uses: actions/jekyll-build-pages@v1
+      with:
+        source: gh-pages
+        destination: output
 
-      - name: "Upload the release"
-        uses: actions/upload-artifact@v4
-        if: ${{ inputs.dry-run == 'true' }}
-        with:
-          name: "Website_for_${{ env.PKGNAME }}_${{ env.VERSION }}"
-          path: output
-          if-no-files-found: error
+    - name: "Upload the release"
+      uses: actions/upload-artifact@v5
+      if: ${{ inputs.dry-run == 'true' }}
+      with:
+        name: "Website_for_${{ env.PKGNAME }}_${{ env.VERSION }}"
+        path: output
+        if-no-files-found: error
