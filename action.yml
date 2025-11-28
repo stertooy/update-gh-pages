@@ -41,7 +41,7 @@ runs:
         validate_boolean "${{ inputs.clean }}" clean
 
     # We explicitly do a fresh checkout so we don't rely on prevous workflow steps
-    # Until actions/checkout/issues/2318 is fixed, stick to v5
+    # Until https://github.com/actions/checkout/issues/2318 is fixed, stick to v5
     - name: "Checkout"
       uses: actions/checkout@v5
       with:
