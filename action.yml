@@ -53,8 +53,8 @@ runs:
         echo $CREDS
         cat $CREDS
         #git config --local include.path $CREDS
-        #git config --local user.email "github-actions[bot]@users.noreply.github.com"
-        #git config --local user.name "github-actions[bot]"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
         git fetch
 
     - name: "Create gh-pages worktree"
