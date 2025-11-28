@@ -46,6 +46,7 @@ runs:
       uses: actions/checkout@v5
       with:
         path: gh-pages-tmpdir
+        repository: ${{ inputs.repository }}
 
     - name: "Setup git"
       shell: bash
