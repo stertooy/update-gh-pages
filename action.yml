@@ -41,7 +41,7 @@ runs:
         validate_boolean "${{ inputs.clean }}" clean
 
     - name: "Checkout"
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         path: gh-pages-tmp
 
@@ -49,6 +49,8 @@ runs:
       shell: bash
       working-directory: gh-pages-tmp
       run: |
+        CREDS=$(ls $RUNNER_TEMP/git-credentials-*.config | head -n 1)
+        git config --local credential.helper "store --file=$CREDS"
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git fetch
