@@ -50,7 +50,9 @@ runs:
       working-directory: gh-pages-tmp
       run: |
         CREDS=$(ls $RUNNER_TEMP/git-credentials-*.config | head -n 1)
-        git config --local credential.helper "store --file=$CREDS"
+        echo $CREDS
+        cat $CREDS
+        git config --local include.path $CREDS
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git fetch
@@ -65,6 +67,8 @@ runs:
           git switch --orphan gh-pages
           git commit --allow-empty -m "Create gh-pages branch"
           git checkout $BRANCH
+        else
+          echo "Using existing gh-pages branch!"
         fi
         git worktree add gh-pages gh-pages
 
