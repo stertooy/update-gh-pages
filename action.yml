@@ -49,10 +49,6 @@ runs:
       shell: bash
       working-directory: gh-pages-tmp
       run: |
-        CREDS=$(ls $RUNNER_TEMP/git-credentials-*.config | head -n 1)
-        echo $CREDS
-        cat $CREDS
-        #git config --local include.path $CREDS
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         git fetch
@@ -195,6 +191,10 @@ runs:
       working-directory: gh-pages-tmp/gh-pages
       if: ${{ inputs.dry-run == 'false' }}
       run: |
+        CREDS=$(ls $RUNNER_TEMP/git-credentials-*.config | head -n 1)
+        echo $CREDS
+        cat $CREDS
+        git config --local include.path $CREDS
         git add -A
         git commit --allow-empty -m "Update website for $PKGNAME $VERSION"
         git push --set-upstream origin gh-pages
